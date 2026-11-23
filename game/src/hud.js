@@ -17,7 +17,17 @@ export function initHud() {
     preset: document.getElementById('hud-preset'),
     fps: document.getElementById('hud-fps'),
     speed: document.getElementById('hud-speed'),
+    speedLabel: document.getElementById('hud-speed-label'),
     minimap: document.getElementById('hud-minimap'),
+    mission: document.getElementById('hud-mission'),
+    missionTitle: document.getElementById('hud-mission-title'),
+    missionObjective: document.getElementById('hud-mission-objective'),
+    missionTimer: document.getElementById('hud-mission-timer'),
+    missionCash: document.getElementById('hud-mission-cash'),
+    dialog: document.getElementById('hud-dialog'),
+    prompt: document.getElementById('hud-prompt'),
+    damageFlash: document.getElementById('hud-damage-flash'),
+    broadcast: document.getElementById('hud-broadcast'),
   };
 }
 
@@ -96,6 +106,35 @@ export function drawMinimapPlayer(canvas, camX, camZ, headingDeg) {
   ctx.stroke();
 }
 
+// Mission target on the minimap: a diamond (yellow = pickup, green = deliver).
+export function drawMinimapMission(canvas, target) {
+  if (!target) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  const sx = (x) => ((x + 1920) / 3840) * W;
+  const sz = (z) => ((z + 1728) / 3456) * H;
+  const x = sx(target.x);
+  const y = sz(target.z);
+  ctx.fillStyle = target.color;
+  ctx.strokeStyle = '#10161c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 6);
+  ctx.lineTo(x + 5, y);
+  ctx.lineTo(x, y + 6);
+  ctx.lineTo(x - 5, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export function updateHud(els, state) {
   const d = districtAt(state.camX, state.camZ);
   els.district.textContent = d.name.toUpperCase();
@@ -107,4 +146,29 @@ export function updateHud(els, state) {
   els.preset.textContent = state.presetName;
   els.fps.textContent = state.shotMode ? '— fps' : `${state.fps} fps`;
   els.speed.textContent = `${Math.round(state.speedKmh)} km/h`;
+  if (els.speedLabel) els.speedLabel.textContent = state.modeLabel ?? 'SHOT VIEW';
+  // Mission panel (Stage B): title + objective + timer + cash.
+  if (els.mission) {
+    if (state.mission) {
+      els.mission.style.display = 'block';
+      els.missionTitle.textContent = `MISSION ${state.mission.id} — ${state.mission.title.toUpperCase()}`;
+      els.missionObjective.textContent = state.objective ?? '';
+      els.missionTimer.textContent = fmtTime(state.missionTimer ?? 0);
+      els.missionCash.textContent = `$${state.cash ?? 0}`;
+    } else {
+      els.mission.style.display = 'none';
+    }
+  }
+  if (els.dialog) els.dialog.textContent = state.dialog ?? '';
+  if (els.prompt) {
+    els.prompt.textContent = state.prompt ?? '';
+    els.prompt.style.display = state.prompt ? 'block' : 'none';
+  }
+  if (els.broadcast) {
+    els.broadcast.textContent = state.broadcast ?? '';
+    els.broadcast.style.display = state.broadcast ? 'block' : 'none';
+  }
+  if (els.damageFlash) {
+    els.damageFlash.style.opacity = state.damageFlash > 0 ? String(Math.min(0.55, state.damageFlash)) : '0';
+  }
 }

@@ -5,6 +5,7 @@
 // Face culling is deliberately OFF: winding mistakes must never blank the city.
 import { ROADS, DIAGONAL, CANAL, HARBOUR, BEACH, PARK, PLAZA, TOWER, FOUNTAIN } from './city.js';
 import { mulberry32, range, pick } from './rng.js';
+import { carsInHeadlightCone } from './drive.js';
 
 export const PRESETS = {
   midday: {
@@ -362,7 +363,14 @@ export class Renderer {
     this.skyCount = 0;
     this.shadowCount = 0;
     this.dynCount = 0;
+    this.stageB = null; // Stage B state (null = Stage A behaviour).
     this.buildStatic();
+  }
+
+  // Stage B state: {playerCar, headlightsOn, preset, time, eRing, markers,
+  // mara, dust, lightStates}. Null = Stage A behaviour.
+  setStageB(sb) {
+    this.stageB = sb;
   }
 
   // Bind one of the four buffers and re-point the attrib pointers at it.
@@ -541,8 +549,8 @@ export class Renderer {
     for (const tl of city.trafficLights) {
       b.prism(tl.x, 0, tl.z, 0.5, 11, 6, { color: rgba('#2e3438') });
       b.box(tl.x, 11, tl.z, 2, 5, 1.4, { color: rgba('#1c2024') });
-      b.box(tl.x - 0.7, 14.4, tl.z + 0.75, 1.4, 1.4, 0.3, { color: rgba('#ff2a1a'), emissive: [1, 0.15, 0.1] });
-      b.box(tl.x - 0.7, 12.6, tl.z + 0.75, 1.4, 1.4, 0.3, { color: rgba('#22ff55'), emissive: [0.2, 1, 0.3] });
+      b.box(tl.x - 0.7, 14.4, tl.z + 0.75, 1.4, 1.4, 0.3, { color: rgba('#ff2a1a'), emissive: [0.25, 0.04, 0.03] });
+      b.box(tl.x - 0.7, 12.6, tl.z + 0.75, 1.4, 1.4, 0.3, { color: rgba('#22ff55'), emissive: [0.05, 0.25, 0.08] });
     }
     // Boats: hull + cabin + mast.
     for (const boat of city.boats) {
@@ -684,8 +692,18 @@ export class Renderer {
   }
 
   // Rebuilds the dynamic buffer from the city's cars + pedestrians (all classes).
+  // Stage B extras (when this.stageB is set): headlight cones + lit-car boost,
+  // E prompt ring, mission markers, Mara, dust, live traffic-light dots.
   buildDynamic() {
     const b = new Builder();
+    const sb = this.stageB;
+    // Cars inside the player's headlight cone get a warm emissive boost.
+    const litCars = new Set();
+    let playerCar = null;
+    if (sb && sb.playerCar && sb.headlightsOn) {
+      playerCar = sb.playerCar;
+      for (const c of carsInHeadlightCone(playerCar, this.city.cars)) litCars.add(c);
+    }
     const car = (c) => {
       const rot = c.rot;
       const cos = Math.cos(rot);
@@ -694,7 +712,8 @@ export class Renderer {
         const [rx, rz] = rotXZ(lx, lz, 0, 0, cos, sin);
         return [c.x + rx, c.z + rz];
       };
-      const body = { color: rgba(c.color), spec: 0.5 };
+      const boost = litCars.has(c) ? [0.5, 0.45, 0.3] : [0, 0, 0];
+      const body = { color: rgba(c.color), spec: 0.5, emissive: boost };
       const glass = { color: rgba('#1c2733'), spec: 0.8 };
       const wheel = { color: rgba('#14161a') };
       // Body (4.4 long along local z, 2 wide) + cabin + 4 wheels.
@@ -727,11 +746,91 @@ export class Renderer {
         const [sx, sz] = local(0, 0);
         b.box(sx, y1 + 0.85, sz, 1.4, 0.5, 0.7, { color: rgba('#f4efe2'), emissive: [0.9, 0.8, 0.55] }, rot);
       }
+      // Taillights (rear face) + headlights (front face, night/sunset traffic).
+      const rear = (lx) => local(lx, -2.25);
+      const front = (lx) => local(lx, 2.25);
+      for (const lx of [-0.6, 0.6]) {
+        const [tx0, tz0] = rear(lx - 0.25);
+        const [tx1, tz1] = rear(lx + 0.25);
+        b.quad([tx0, 0.7, tz0], [tx1, 0.7, tz1], [tx1, 1.05, tz1], [tx0, 1.05, tz0], { color: rgba('#ff2a1a'), emissive: [0.9, 0.1, 0.1] });
+        if (sb && (sb.preset === 'night' || sb.preset === 'sunset') && (c.kind === 'traffic' || c.kind === 'taxi')) {
+          const [hx0, hz0] = front(lx - 0.25);
+          const [hx1, hz1] = front(lx + 0.25);
+          b.quad([hx0, 0.7, hz0], [hx1, 0.7, hz1], [hx1, 1.05, hz1], [hx0, 1.05, hz0], { color: rgba('#fff2c0'), emissive: [0.9, 0.85, 0.6] });
+        }
+      }
     };
     for (const c of this.city.cars) car(c);
     for (const p of this.city.pedestrians) {
       b.box(p.x, 0, p.z, 1.1, 2.2, 0.7, { color: rgba(p.jacket) }, p.rot);
       b.box(p.x, 2.2, p.z, 0.7, 0.7, 0.7, { color: rgba('#e8b98a') }, p.rot);
+    }
+    // Player headlight cones: two ground trapezoids + a soft pool ahead.
+    if (sb && playerCar && sb.headlightsOn) {
+      const preset = sb.preset || 'midday';
+      const strength = preset === 'night' ? 1.0 : preset === 'sunset' ? 0.7 : 0.35;
+      const [fx, fz] = [-Math.sin(playerCar.rot), Math.cos(playerCar.rot)];
+      const rx = -fz;
+      const rz = fx;
+      for (const side of [-0.7, 0.7]) {
+        const hx = playerCar.x + rx * side;
+        const hz = playerCar.z + rz * side;
+        const nL = [hx - rx * 0.6 + fx * 2.4, hz - rz * 0.6 + fz * 2.4];
+        const nR = [hx + rx * 0.6 + fx * 2.4, hz + rz * 0.6 + fz * 2.4];
+        const fL = [hx - rx * 3.2 + fx * 24, hz - rz * 3.2 + fz * 24];
+        const fR = [hx + rx * 3.2 + fx * 24, hz + rz * 3.2 + fz * 24];
+        b.quad([nL[0], 0.22, nL[1]], [nR[0], 0.22, nR[1]], [fR[0], 0.22, fR[1]], [fL[0], 0.22, fL[1]], {
+          color: [1, 0.95, 0.75, 0.5 * strength],
+          emissive: [0.9 * strength, 0.82 * strength, 0.55 * strength],
+          normal: [0, 1, 0],
+        });
+      }
+      b.disc(playerCar.x + fx * 12, 0.21, playerCar.z + fz * 12, 7, {
+        color: [1, 0.95, 0.75, 0.3 * strength],
+        emissive: [0.5 * strength, 0.45 * strength, 0.28 * strength],
+      });
+    }
+    // Yellow diamond above the driven car.
+    if (playerCar) {
+      const bob = 0.4 * Math.sin((sb.time ?? 0) * 2);
+      b.pyramid(playerCar.x, 4.2 + bob, playerCar.z, 2.2, 2.2, 2.2, { color: rgba('#ffd25f'), emissive: [0.9, 0.7, 0.2] });
+    }
+    // E prompt ring on the ground around the nearest car.
+    if (sb && sb.eRing) {
+      b.disc(sb.eRing.x, 0.24, sb.eRing.z, sb.eRing.r, {
+        color: sb.eRing.locked ? [0.6, 0.6, 0.65, 0.3] : [1, 0.82, 0.37, 0.35],
+        emissive: sb.eRing.locked ? [0.2, 0.2, 0.22] : [0.45, 0.35, 0.1],
+      });
+    }
+    // Mission markers: ground cylinder + floating diamond + ground ring.
+    if (sb && sb.markers) {
+      for (const m of sb.markers) {
+        const bob = 0.5 * Math.sin((sb.time ?? 0) * 2.5);
+        b.prism(m.x, 0.3, m.z, 3, 14, 10, { color: rgba(m.color, 0.35), emissive: hexRgb(m.color).map((v) => v * 0.5) });
+        b.pyramid(m.x, 15 + bob, m.z, 3, 3, 3, { color: rgba(m.color), emissive: hexRgb(m.color).map((v) => v * 0.8) });
+        b.disc(m.x, 0.26, m.z, 6, { color: rgba(m.color, 0.3), emissive: hexRgb(m.color).map((v) => v * 0.3) });
+      }
+    }
+    // Mara on foot.
+    if (sb && sb.mara) {
+      b.box(sb.mara.x, 0, sb.mara.z, 1.1, 2.2, 0.7, { color: rgba('#e84c3d') }, sb.mara.rot);
+      b.box(sb.mara.x, 2.2, sb.mara.z, 0.7, 0.7, 0.7, { color: rgba('#e8b98a') }, sb.mara.rot);
+    }
+    // Dust puffs from collisions.
+    if (sb && sb.dust) {
+      for (const d of sb.dust) {
+        const a = Math.max(0, 0.4 * (1 - d.age / d.life));
+        b.disc(d.x, 0.3, d.z, 2 + d.age * 3, { color: [0.8, 0.75, 0.65, a], emissive: [0.1, 0.1, 0.1] });
+      }
+    }
+    // Live traffic-light dots: a bright box at the active lamp.
+    if (sb && sb.lightStates) {
+      for (const ls of sb.lightStates) {
+        const y = ls.state === 'red' ? 14.4 : ls.state === 'green' ? 12.6 : 13.5;
+        const col = ls.state === 'red' ? '#ff2a1a' : ls.state === 'green' ? '#22ff55' : '#ffb020';
+        const em = ls.state === 'red' ? [1, 0.15, 0.1] : ls.state === 'green' ? [0.2, 1, 0.3] : [1, 0.65, 0.1];
+        b.box(ls.x - 0.7, y, ls.z + 0.75, 1.8, 1.8, 0.4, { color: rgba(col), emissive: em });
+      }
     }
     this.dynCount = this.upload(b, this.buffers.dyn);
   }

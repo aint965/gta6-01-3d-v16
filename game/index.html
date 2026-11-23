@@ -27,6 +27,15 @@
   #hud-speed-label { font-size: 12px; letter-spacing: 3px; color: #d8cdb4; }
   #hud-controls { bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 13px; letter-spacing: 1px; background: rgba(10,14,18,0.45); padding: 4px 12px; border-radius: 3px; white-space: nowrap; }
   #hud-minimap { position: fixed; right: 16px; bottom: 16px; width: 220px; height: 220px; border: 2px solid rgba(255,210,95,0.6); border-radius: 3px; background: #10161c; z-index: 2; }
+  #hud-mission { top: 168px; left: 16px; width: 300px; background: rgba(10,14,18,0.55); padding: 8px 12px; border-radius: 3px; border-left: 3px solid #ffd25f; }
+  #hud-mission-title { font-size: 15px; letter-spacing: 1px; color: #ffd25f; }
+  #hud-mission-objective { font-size: 13px; font-style: italic; color: #f2ead8; margin-top: 2px; }
+  #hud-mission-row { font-size: 13px; color: #d8cdb4; margin-top: 4px; }
+  #hud-mission-cash { color: #4ade80; font-weight: bold; }
+  #hud-dialog { top: 52px; left: 50%; transform: translateX(-50%); max-width: 640px; text-align: center; font-size: 15px; font-style: italic; background: rgba(10,14,18,0.55); padding: 6px 16px; border-radius: 3px; }
+  #hud-prompt { bottom: 64px; left: 50%; transform: translateX(-50%); font-size: 16px; letter-spacing: 2px; color: #ffd25f; background: rgba(10,14,18,0.6); padding: 6px 16px; border-radius: 3px; }
+  #hud-broadcast { top: 38%; left: 50%; transform: translate(-50%, -50%); font-size: 30px; letter-spacing: 3px; color: #ffd25f; background: rgba(10,14,18,0.75); padding: 14px 28px; border-radius: 4px; text-align: center; }
+  #hud-damage-flash { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,30,20,0.55) 100%); opacity: 0; z-index: 3; }
 </style>
 </head>
 <body>
@@ -52,6 +61,16 @@
   <div id="hud-speed-label">SHOT VIEW</div>
 </div>
 <div class="panel" id="hud-controls">WASD walk &middot; Shift run &middot; E enter car &middot; drag orbit &middot; wheel zoom &middot; 1 / 2 / 3 midday / sunset / night</div>
+<div class="panel" id="hud-mission">
+  <div id="hud-mission-title">MISSION 1 — A RECEIPT FOR SUNSHINE</div>
+  <div id="hud-mission-objective">Pick up: Fountain, Central Plaza</div>
+  <div id="hud-mission-row"><span id="hud-mission-timer">00:00</span> &nbsp;&middot;&nbsp; cash <span id="hud-mission-cash">$0</span></div>
+</div>
+<div class="panel" id="hud-dialog"></div>
+<div class="panel" id="hud-prompt" style="display:none"></div>
+<div class="panel" id="hud-broadcast" style="display:none"></div>
+<div id="hud-damage-flash"></div>
+<div id="autotest-result" style="display:none"></div>
 <canvas id="hud-minimap" width="220" height="220"></canvas>
 <script type="module" src="./src/main.js"></script>
 </body>
