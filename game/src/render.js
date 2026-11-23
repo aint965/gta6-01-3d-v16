@@ -698,11 +698,16 @@ export class Renderer {
     const b = new Builder();
     const sb = this.stageB;
     // Cars inside the player's headlight cone get a warm emissive boost.
+    // playerCar is set whenever the player is driving (the yellow diamond
+    // above the driven car must render with the lights off too); only the
+    // cone + lit-car boost are gated on headlightsOn.
     const litCars = new Set();
     let playerCar = null;
-    if (sb && sb.playerCar && sb.headlightsOn) {
+    if (sb && sb.playerCar) {
       playerCar = sb.playerCar;
-      for (const c of carsInHeadlightCone(playerCar, this.city.cars)) litCars.add(c);
+      if (sb.headlightsOn) {
+        for (const c of carsInHeadlightCone(playerCar, this.city.cars)) litCars.add(c);
+      }
     }
     const car = (c) => {
       const rot = c.rot;

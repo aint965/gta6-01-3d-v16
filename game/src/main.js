@@ -39,6 +39,11 @@ const demo = params.get('demo') || '';
 const missionParam = parseInt(params.get('mission') || '0', 10) || 0;
 const autotest = params.get('autotest') || '';
 const ff = Math.max(1, parseInt(params.get('ff') || '1', 10));
+// ?norender=1 skips the WebGL draw + HUD/minimap work each frame (test hook
+// for the autotest only — the sim still runs). Without it the headless
+// shell's SwiftShader render is the bottleneck and the 4-mission autotest
+// cannot finish inside a virtual-time budget.
+const norender = params.get('norender') === '1';
 const seedParam = params.get('seed') || '';
 
 const canvas = document.getElementById('game');
@@ -482,7 +487,11 @@ function updateCamera(dt) {
     ];
     look = target;
   }
-  const k = 1 - Math.exp(-5 * dt);
+  // Frozen demo shots (headlight on/off pair, mission stills) must be
+  // pixel-identical except for the effect under test — snap the camera
+  // instead of lerping from Mara's spawn, or the two runs frame at
+  // different points along the lerp and the comparison is meaningless.
+  const k = demoState?.frozen ? 1 : 1 - Math.exp(-5 * dt);
   cam.pos[0] += (ideal[0] - cam.pos[0]) * k;
   cam.pos[1] += (ideal[1] - cam.pos[1]) * k;
   cam.pos[2] += (ideal[2] - cam.pos[2]) * k;
@@ -511,6 +520,7 @@ function frame(now) {
   updateCamera(dtReal);
   const pos = cameraPos();
   const aspect = canvas.width / Math.max(1, canvas.height);
+  if (!norender) {
   // Stage B state for the renderer.
   const target = currentTarget(missions);
   const nearDrive = mode === 'walk' ? nearestDrivable(city, mara.x, mara.z, 10) : null;
@@ -564,6 +574,7 @@ function frame(now) {
   drawMinimapBuildings(hud.minimap, city.buildings);
   if (target) drawMinimapMission(hud.minimap, target);
   drawMinimapPlayer(hud.minimap, minimapX, minimapZ, headingDeg());
+  }
   if (firstFrame) {
     firstFrame = false;
     window.__gameReady = true;

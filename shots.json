@@ -1,1 +1,1 @@
-[{"name":"1-boulevard-day.png","query":"?shot=day&seed=20261123"},{"name":"2-sunset.png","query":"?shot=sunset&seed=20261123"},{"name":"3-night.png","query":"?shot=night&seed=20261123"},{"name":"4-plaza.jpg","query":"?shot=plaza&seed=20261123"}]
+[{"name":"drive-day.png","query":"?demo=drive"},{"name":"2-sunset.png","query":"?shot=sunset&seed=20261123"},{"name":"night-drive.png","query":"?demo=night"},{"name":"4-plaza.jpg","query":"?shot=plaza&seed=20261123"}]
